@@ -32,7 +32,6 @@ func buildRegex() *regexp.Regexp {
 		return len(prefixes[i]) > len(prefixes[j])
 	})
 
-	// pattern := `(` + strings.Join(prefixes, "|") + `)`
 	pattern := `(?m)^(?:` + strings.Join(prefixes, "|") + `)`
 
 	return regexp.MustCompile(pattern)
@@ -49,17 +48,12 @@ func splitByPrefix(text string) []string {
 
 	var result []string
 
-	// Preserve header
-	// if indexes[0][0] > 0 {
-	// 	result = append(result, text[:indexes[0][0]])
-	// }
-
 	for i := 0; i < len(indexes); i++ {
 		start := indexes[i][0]
 
 		var end int
 		if i+1 < len(indexes) {
-			end = indexes[i+1][0]
+		end = indexes[i+1][0]
 		} else {
 			end = len(text)
 		}
@@ -69,6 +63,7 @@ func splitByPrefix(text string) []string {
 
 	return result
 }
+
 func expandDecodedConfig(configs string) []string {
 	res := []string{}
 	add := func(config ...string) {
@@ -83,10 +78,39 @@ func expandDecodedConfig(configs string) []string {
 
 	configs2 := []string{}
 	for _, config := range strings.Split(configs, "\n") {
-		configDecoded, err := decodeBase64IfNeeded(config)
-		if err != nil {
-			configDecoded = config
+		config = strings.TrimSpace(config)
+		if config == "" {
+			continue
 		}
+		
+		isLink := false
+		for k := range configTypes {
+			if strings.HasPrefix(config, k) {
+				isLink = true
+				break
+			}
+		}
+		for k := range endpointParsers {
+			if strings.HasPrefix(config, k) {
+				isLink = true
+				break
+			}
+		}
+		for k := range xrayConfigTypes {
+			if strings.HasPrefix(config, k) {
+				isLink = true
+				break
+			}
+		}
+
+		configDecoded := config
+		if !isLink {
+			decoded, err := decodeBase64IfNeeded(config)
+			if err == nil {
+				configDecoded = decoded
+			}
+		}
+		
 		configs2 = append(configs2, strings.Split(strings.ReplaceAll(configDecoded, "\r", "\n"), "\n")...)
 	}
 
@@ -96,3 +120,4 @@ func expandDecodedConfig(configs string) []string {
 
 	return res
 }
+

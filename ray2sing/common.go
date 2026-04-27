@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/url"
 	"strconv"
+	"os"
 
 	"strings"
 	"time"
@@ -166,7 +167,7 @@ func getTransportOptions(decoded map[string]string) (*option.V2RayTransportOptio
 	if net == "raw" || net == "" {
 		net = "tcp"
 	}
-	// fmoption.Printf("\n\nheaderType:%s, net:%s, type:%s\n\n", decoded["headerType"], net, decoded["type"])
+
 	if (decoded["type"] == "http" || decoded["headertype"] == "http") && net == "tcp" {
 		net = "http"
 	}
@@ -201,18 +202,6 @@ func getTransportOptions(decoded map[string]string) (*option.V2RayTransportOptio
 			if err != nil {
 				return &option.V2RayTransportOptions{}, err
 			}
-			// pathQuery := pathURL.Query()
-			// transportOptions.HTTPUpgradeOptions.MaxEarlyData = 0
-			// transportOptions.HTTPUpgradeOptions.EarlyDataHeaderName = "Sec-WebSocket-Protocol"
-			// maxEarlyDataString := pathQuery.Get("ed")
-			// if maxEarlyDataString != "" {
-			// 	maxEarlyDate, err := strconv.ParseUint(maxEarlyDataString, 10, 32)
-			// 	if err == nil {
-			// 		// transportOptions.HTTPUpgradeOptions.MaxEarlyData = uint32(maxEarlyDate)
-			// 		pathQuery.Del("ed")
-			// 		pathURL.RawQuery = pathQuery.Encode()
-			// 	}
-			// }
 			transportOptions.HTTPUpgradeOptions.Path = pathURL.String()
 		}
 	case "ws":
@@ -271,114 +260,62 @@ func getTransportOptions(decoded map[string]string) (*option.V2RayTransportOptio
 			x := XHTTPExtra{}
 			err := json.Unmarshal([]byte(extra), &x)
 			if err != nil {
-				return nil, err
-			}
-			transportOptions.XHTTPOptions.V2RayXHTTPBaseOptions = x.V2RayXHTTPBaseOptions
-			if transportOptions.XHTTPOptions.Host == "" {
-				transportOptions.XHTTPOptions.Host = host
-			}
-			if transportOptions.XHTTPOptions.Path == "" {
-				transportOptions.XHTTPOptions.Path = path
-			}
-			if dl := x.DownloadSettings; dl != nil {
-				transportOptions.XHTTPOptions.Download = &option.V2RayXHTTPDownloadOptions{
-					V2RayXHTTPBaseOptions: dl.V2RayXHTTPBaseOptions,
-					ServerOptions: option.ServerOptions{
-						Server:     dl.Address,
-						ServerPort: uint16(dl.Port),
-					},
+				fmt.Fprintf(os.Stderr, "ray2sing warning: xhttp extra json unmarshal failed, falling back to base configuration: %v\n", err)
+			} else {
+				transportOptions.XHTTPOptions.V2RayXHTTPBaseOptions = x.V2RayXHTTPBaseOptions
+				if transportOptions.XHTTPOptions.Host == "" {
+					transportOptions.XHTTPOptions.Host = host
 				}
-				if transportOptions.XHTTPOptions.Download.Path == "" {
-					transportOptions.XHTTPOptions.Download.Path = path
+				if transportOptions.XHTTPOptions.Path == "" {
+					transportOptions.XHTTPOptions.Path = path
 				}
-				if dl.Security == "tls" && dl.TLSSettings != nil {
-					transportOptions.XHTTPOptions.Download.TLS = &option.OutboundTLSOptions{
-						Enabled:    true,
-						ALPN:       dl.TLSSettings.ALPN,
-						Insecure:   dl.TLSSettings.Insecure,
-						ServerName: dl.TLSSettings.ServerName,
-					}
-
-					if dl.TLSSettings.Fingerprint != "" && getALPNversion(dl.TLSSettings.ALPN) != 3 {
-						transportOptions.XHTTPOptions.Download.TLS.UTLS = &option.OutboundUTLSOptions{
-							Enabled:     true,
-							Fingerprint: dl.TLSSettings.Fingerprint,
-						}
-					}
-				}
-				if dl.Security == "reality" && dl.REALITYSettings != nil {
-					transportOptions.XHTTPOptions.Download.TLS = &option.OutboundTLSOptions{
-						Enabled: true,
-						Reality: &option.OutboundRealityOptions{
-							Enabled:   true,
-							PublicKey: dl.REALITYSettings.PublicKey,
-							ShortID:   dl.REALITYSettings.ShortId,
+				if dl := x.DownloadSettings; dl != nil {
+					transportOptions.XHTTPOptions.Download = &option.V2RayXHTTPDownloadOptions{
+						V2RayXHTTPBaseOptions: dl.V2RayXHTTPBaseOptions,
+						ServerOptions: option.ServerOptions{
+							Server:     dl.Address,
+							ServerPort: uint16(dl.Port),
 						},
-						ServerName: dl.REALITYSettings.ServerName,
 					}
-					if dl.REALITYSettings.Fingerprint != "" {
-						transportOptions.XHTTPOptions.Download.TLS.UTLS = &option.OutboundUTLSOptions{
-							Enabled:     true,
-							Fingerprint: dl.REALITYSettings.Fingerprint,
+					if transportOptions.XHTTPOptions.Download.Path == "" {
+						transportOptions.XHTTPOptions.Download.Path = path
+					}
+					if dl.Security == "tls" && dl.TLSSettings != nil {
+						transportOptions.XHTTPOptions.Download.TLS = &option.OutboundTLSOptions{
+							Enabled:    true,
+							ALPN:       dl.TLSSettings.ALPN,
+							Insecure:   dl.TLSSettings.Insecure,
+							ServerName: dl.TLSSettings.ServerName,
+						}
+
+						if dl.TLSSettings.Fingerprint != "" && getALPNversion(dl.TLSSettings.ALPN) != 3 {
+							transportOptions.XHTTPOptions.Download.TLS.UTLS = &option.OutboundUTLSOptions{
+								Enabled:     true,
+								Fingerprint: dl.TLSSettings.Fingerprint,
+							}
 						}
 					}
+					if dl.Security == "reality" && dl.REALITYSettings != nil {
+						transportOptions.XHTTPOptions.Download.TLS = &option.OutboundTLSOptions{
+							Enabled: true,
+							Reality: &option.OutboundRealityOptions{
+								Enabled:   true,
+								PublicKey: dl.REALITYSettings.PublicKey,
+								ShortID:   dl.REALITYSettings.ShortId,
+							},
+							ServerName: dl.REALITYSettings.ServerName,
+						}
+						if dl.REALITYSettings.Fingerprint != "" {
+							transportOptions.XHTTPOptions.Download.TLS.UTLS = &option.OutboundUTLSOptions{
+								Enabled:     true,
+								Fingerprint: dl.REALITYSettings.Fingerprint,
+							}
+						}
+					}
+
 				}
-
 			}
-
 		}
-
-		// 	var extraConfig option.V2RayXHTTPBaseOptions
-		// 	err := json.Unmarshal([]byte(extra), &extraConfig)
-		// 	if err != nil {
-		// 		return nil, err
-		// 	}
-		// 	if headers, ok := extraConfig["headers"]; ok {
-		// 		if headersMap, ok := headers.(map[string]string); ok {
-		// 			transportOptions.XHTTPOptions.Headers = make(badoption.HTTPHeader, len(headersMap))
-		// 			for k, v := range headersMap {
-		// 				transportOptions.XHTTPOptions.Headers[k] = badoption.Listable[string]{v}
-		// 			}
-		// 		}
-		// 	}
-		// 	if dlsettings, ok := extraConfig["downloadSettings"]; ok {
-		// 		if dlsettingsMap, ok := dlsettings.(map[string]any); ok {
-		// 			if addr, ok := dlsettingsMap["address"]; ok {
-		// 				if addrs, ok := addr.(string); ok {
-		// 					transportOptions.XHTTPOptions.DownloadServer = addrs
-		// 				}
-		// 			}
-		// 			if port, ok := dlsettingsMap["port"]; ok {
-		// 				if portInt, ok := port.(int); ok {
-		// 					transportOptions.XHTTPOptions.DownloadServerPort = uint16(portInt)
-		// 				} else if portuInt, ok := port.(uint16); ok {
-		// 					transportOptions.XHTTPOptions.DownloadServerPort = portuInt
-		// 				} else if ports, ok := port.(string); ok {
-		// 					transportOptions.XHTTPOptions.DownloadServerPort = toUInt16(ports, 0)
-		// 				}
-		// 			}
-
-		// 		}
-		// 	}
-		// 	if noGRPCHeader, ok := extraConfig["noGRPCHeader"]; ok {
-		// 		if noGRPCHeaderb, ok := noGRPCHeader.(bool); ok {
-		// 			transportOptions.XHTTPOptions.NoGRPCHeader = noGRPCHeaderb
-		// 		}
-		// 	}
-		// 	if noSSEHeader, ok := extraConfig["noSSEHeader"]; ok {
-		// 		if noSSEHeaderb, ok := noSSEHeader.(bool); ok {
-		// 			transportOptions.XHTTPOptions.NoGRPCHeader = noSSEHeaderb
-		// 		}
-		// 	}
-
-		// 	if scMaxBufferedPosts, ok := extraConfig["scMaxBufferedPosts"]; ok {
-		// 		if scMaxBufferedPosti, ok := scMaxBufferedPosts.(int); ok {
-		// 			transportOptions.XHTTPOptions.MaxEachPostBytes = uint64(scMaxBufferedPosti)
-		// 		}
-		// 	}
-
-		// res["extra"] = extraConfig
-		// }
 
 	default:
 		return nil, E.New("unknown transport type: " + net)
@@ -386,6 +323,7 @@ func getTransportOptions(decoded map[string]string) (*option.V2RayTransportOptio
 
 	return &transportOptions, nil
 }
+
 func getALPNversion(s []string) int {
 	if len(s) == 0 {
 		return 1
@@ -399,40 +337,29 @@ func getALPNversion(s []string) int {
 	return 1
 }
 
-// func getV2RayXHTTPBaseOptions(extraConfig map[string]any) option.V2RayXHTTPBaseOptions {
-// 	opts := option.V2RayXHTTPBaseOptions{}
-// 	if headers, ok := extraConfig["headers"]; ok {
-// 		if headersMap, ok := headers.(map[string]string); ok {
-// 			opts.Headers = headersMap
-// 		}
-// 	}
-
-// 	if noGRPCHeader, ok := extraConfig["noGRPCHeader"]; ok {
-// 		if noGRPCHeaderb, ok := noGRPCHeader.(bool); ok {
-// 			opts.NoGRPCHeader = noGRPCHeaderb
-// 		}
-// 	}
-// 	if noSSEHeader, ok := extraConfig["noSSEHeader"]; ok {
-// 		if noSSEHeaderb, ok := noSSEHeader.(bool); ok {
-// 			opts.NoGRPCHeader = noSSEHeaderb
-// 		}
-// 	}
-
-//		if scMaxBufferedPosts, ok := extraConfig["scMaxBufferedPosts"]; ok {
-//			if scMaxBufferedPosti, ok := scMaxBufferedPosts.(int); ok {
-//				opts.ScMaxBufferedPosts = int64(scMaxBufferedPosti)
-//			}
-//		}
-//	}
 func getDialerOptions(decoded map[string]string) option.DialerOptions {
 	fragment := getFragmentOptions(decoded)
 	return T.DialerOptions{
-		// TCPFastOpen: !fragment.Enabled,
 		TLSFragment: fragment,
 	}
 }
 
 func decodeBase64IfNeeded(b64string string) (string, error) {
+	trimmed := strings.TrimSpace(b64string)
+	// Do not attempt to base64 decode if it is clearly a protocol string
+	if strings.HasPrefix(trimmed, "vless://") || 
+	   strings.HasPrefix(trimmed, "vmess://") || 
+	   strings.HasPrefix(trimmed, "trojan://") || 
+	   strings.HasPrefix(trimmed, "ss://") || 
+	   strings.HasPrefix(trimmed, "hysteria2://") || 
+	   strings.HasPrefix(trimmed, "hy2://") || 
+	   strings.HasPrefix(trimmed, "tuic://") || 
+	   strings.HasPrefix(trimmed, "wireguard://") || 
+	   strings.HasPrefix(trimmed, "wg://") ||
+	   strings.HasPrefix(trimmed, "naive://") ||
+	   strings.HasPrefix(trimmed, "mieru://") {
+		return b64string, fmt.Errorf("already a decoded link")
+	}
 
 	decodedBytes, err := decodeBase64FaultTolerant(b64string)
 
@@ -470,6 +397,7 @@ func toBool(s string, def bool) bool {
 		return def
 	}
 }
+
 func toIntN(s string) *int {
 	i, err := strconv.Atoi(s)
 	if err != nil {
@@ -485,11 +413,10 @@ func toFloatN(s string) *float64 {
 	}
 	return &i
 }
+
 func toUInt16(s string, defaultPort uint16) uint16 {
 	val, err := strconv.ParseInt(s, 10, 17)
 	if err != nil {
-		// fmoption.Printf("err %v", err)
-		// handle the error appropriately; here we return 0
 		return defaultPort
 	}
 	return uint16(val)
@@ -498,8 +425,6 @@ func toUInt16(s string, defaultPort uint16) uint16 {
 func toInt16(s string, defaultPort int16) int16 {
 	val, err := strconv.ParseInt(s, 10, 17)
 	if err != nil {
-		// fmoption.Printf("err %v", err)
-		// handle the error appropriately; here we return 0
 		return defaultPort
 	}
 	return int16(val)
@@ -526,3 +451,4 @@ func getOneOfN(dic map[string]string, defaultval string, headers ...string) stri
 	}
 	return defaultval
 }
+

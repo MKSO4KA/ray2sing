@@ -71,8 +71,7 @@ func ParseUrl(inputURL string, defaultPort uint16) (*UrlSchema, error) {
 func normalizeStr(ss string) string {
 	s := strings.ToLower(strings.TrimSpace(ss))
 	for _, r := range []string{"_", "-"} {
-		s = strings.ReplaceAll(s, r, " ")
-
+		s = strings.ReplaceAll(s, r, "")
 	}
 	return s
 }
@@ -96,3 +95,4 @@ func isValidChar(s string) bool {
 
 	return validCharRegex.MatchString(s)
 }
+
